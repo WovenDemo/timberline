@@ -1,0 +1,65 @@
+# This workflow is executed as part of CI/CD on Github.
+# Configure projects and integrations in opendapi.config.yaml
+
+name: metadata-extraction/woven-ai
+on:
+  # Invoke for every Pull Request targeting main and push to main branch
+  pull_request:
+    branches:
+      - 'main'
+  push:
+    branches:
+      - 'main'
+
+env:
+  GITHUB_BRANCH: ${{ github.event.pull_request.head.ref || github.ref }}
+  PYPI_INDEX_URL: ${{ vars.OPENDAPI_PINNED_VERSION && 'https://test.pypi.org/simple/' || 'https://pypi.org/simple/' }}
+  OPENDAPI_VERSION: ${{ vars.OPENDAPI_PINNED_VERSION || 'opendapi' }}
+  WOVEN_INTEGRATION_MODE: ${{ vars.WOVEN_INTEGRATION_MODE || 'active' }}
+  WOVEN_CONFIGURATION: ${{ vars.WOVEN_CONFIGURATION }}
+
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        # Fetch all branches and history to help create a suggestion PR
+        fetch-depth: 0
+        # Checkout the working branch for PRs instead of merge branch
+        ref: ${{ env.GITHUB_BRANCH }}
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    # Add any additional steps here in case a specific runtime needs to be prepared for the run
+    # For example, if you need to enter a docker container or install specific dependencies
+
+    - name: OpenDAPI CI
+      shell: bash
+      run: |
+        pip install --index-url ${{ env.PYPI_INDEX_URL }}                   \
+                    --extra-index-url https://pypi.org/simple               \
+                    ${{ env.OPENDAPI_VERSION }}
+        opendapi github github run
+
+
+      env:
+        DAPI_SERVER_HOST: '${{ vars.DAPI_SERVER_HOST }}'
+        MAINLINE_BRANCH_NAME: "main"
+
+
+        # Store credentials in Github as a secret
+        DAPI_SERVER_API_KEY: ${{ secrets.DAPI_SERVER_API_KEY }}
+
+        # Configure when DAPIs should be registered.
+        # PRs do not register but only validate and provide suggestions
+        REGISTER_ON_MERGE_TO_MAINLINE: True
+
+        # Other github environment variables needed for opendapi
+        GITHUB_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
